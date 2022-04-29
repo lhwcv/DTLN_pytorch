@@ -20,6 +20,14 @@ python DTLN_model.py  --model_path ./pretrained/model.pth  \
    --wav_out ./out.wav
 ```
 
+realtime (truck by truck, avg 2ms in pytorch with cpu):
+
+```
+python realtime_infer.py  --model_path ./pretrained/model.pth  \
+   --wav_in ./samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav \
+   --wav_out ./out.wav
+```
+
 src wav：[./samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav](./samples/)
 
 ![](./samples/in.png)
@@ -31,7 +39,6 @@ after enhanced: [./samples/enahnced.wav](./samples/)
 
 
 TODO:
-- add realtime infer
 - c++ deploy
 
 ## Citation

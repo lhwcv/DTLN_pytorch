@@ -24,6 +24,7 @@ class Simple_STFT_Layer(nn.Module):
         phase = torch.atan2(i + self.eps, r + self.eps)
         return mag, phase
 
+
 class Pytorch_InstantLayerNormalization(nn.Module):
     '''
     Class implementing instant layer normalization. It can also be called
@@ -59,6 +60,7 @@ class Pytorch_InstantLayerNormalization(nn.Module):
         # return output
         return outputs
 
+
 class SeperationBlock(nn.Module):
     def __init__(self, input_size=257, hidden_size=128, dropout=0.25):
         super(SeperationBlock, self).__init__()
@@ -80,7 +82,7 @@ class SeperationBlock(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        x1, _ = self.rnn1(x)
+        x1, (h, c) = self.rnn1(x)
         x1 = self.drop(x1)
         x2, _ = self.rnn2(x1)
         x2 = self.drop(x2)
@@ -88,6 +90,50 @@ class SeperationBlock(nn.Module):
         mask = self.dense(x2)
         mask = self.sigmoid(mask)
         return mask
+
+
+class SeperationBlock_Stateful(nn.Module):
+    def __init__(self, input_size=257, hidden_size=128, dropout=0.25):
+        super(SeperationBlock_Stateful, self).__init__()
+        self.rnn1 = nn.LSTM(input_size=input_size,
+                            hidden_size=hidden_size,
+                            num_layers=1,
+                            batch_first=True,
+                            dropout=0.0,
+                            bidirectional=False)
+        self.rnn2 = nn.LSTM(input_size=hidden_size,
+                            hidden_size=hidden_size,
+                            num_layers=1,
+                            batch_first=True,
+                            dropout=0.0,
+                            bidirectional=False)
+        self.drop = nn.Dropout(dropout)
+
+        self.dense = nn.Linear(hidden_size, input_size)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x, in_states):
+        '''
+
+        :param x:  [N, T, input_size]
+        :param in_states: [2, N, hidden_size, 2]
+        :return:
+        '''
+        h1_in, c1_in = in_states[:1, :, :, 0], in_states[:1, :, :, 1]
+        h2_in, c2_in = in_states[1:, :, :, 0], in_states[1:, :, :, 1]
+
+        x1, (h1, c1) = self.rnn1(x, (h1_in, c1_in))
+        x1 = self.drop(x1)
+        x2, (h2, c2) = self.rnn2(x1, (h2_in, c2_in))
+        x2 = self.drop(x2)
+
+        mask = self.dense(x2)
+        mask = self.sigmoid(mask)
+
+        h = torch.cat((h1, h2), dim=0)
+        c = torch.cat((c1, c2), dim=0)
+        out_states = torch.stack((h, c), dim=-1)
+        return mask, out_states
 
 
 class Pytorch_DTLN(nn.Module):
@@ -155,22 +201,96 @@ class Pytorch_DTLN(nn.Module):
         return out
 
 
+class Pytorch_DTLN_stateful(nn.Module):
+    def __init__(self, frame_len=512, frame_hop=128, window='rect'):
+        super(Pytorch_DTLN_stateful, self).__init__()
+        self.frame_len = frame_len
+        self.frame_hop = frame_hop
+        self.stft = Simple_STFT_Layer(frame_len, frame_hop)
+
+        self.sep1 = SeperationBlock_Stateful(input_size=(frame_len // 2 + 1), hidden_size=128, dropout=0.25)
+
+        self.encoder_size = 256
+        self.encoder_conv1 = nn.Conv1d(in_channels=frame_len, out_channels=self.encoder_size,
+                                       kernel_size=1, stride=1, bias=False)
+
+        # self.encoder_norm1 = nn.InstanceNorm1d(num_features=self.encoder_size, eps=1e-7, affine=True)
+        self.encoder_norm1 = Pytorch_InstantLayerNormalization(channels=self.encoder_size)
+
+        self.sep2 = SeperationBlock_Stateful(input_size=self.encoder_size, hidden_size=128, dropout=0.25)
+
+        ## TODO with causal padding like in keras,when ksize > 1
+        self.decoder_conv1 = nn.Conv1d(in_channels=self.encoder_size, out_channels=frame_len,
+                                       kernel_size=1, stride=1, bias=False)
+
+    def forward(self, x, in_state1, in_state2):
+        '''
+
+        :param x:  [N, T]
+        :return:
+        '''
+        batch, n_frames = x.shape
+        assert n_frames == self.frame_len
+
+        mag, phase = self.stft(x)
+        mag = mag.permute(0, 2, 1)
+        phase = phase.permute(0, 2, 1)
+
+        # N, T, hidden_size
+        mask, out_state1 = self.sep1(mag, in_state1)
+        estimated_mag = mask * mag
+
+        s1_stft = estimated_mag * torch.exp((1j * phase))
+        y1 = torch.fft.irfft2(s1_stft, dim=-1)
+        y1 = y1.permute(0, 2, 1)
+
+        encoded_f = self.encoder_conv1(y1)
+        encoded_f = encoded_f.permute(0, 2, 1)
+        encoded_f_norm = self.encoder_norm1(encoded_f)
+
+        mask_2, out_state2 = self.sep2(encoded_f_norm, in_state2)
+        estimated = mask_2 * encoded_f
+        estimated = estimated.permute(0, 2, 1)
+
+        decoded_frame = self.decoder_conv1(estimated)
+
+        return decoded_frame, out_state1, out_state2
+
+
+def test_stateful():
+    bsize = 1
+    x = torch.randn(bsize, 512)
+    # 2, bsize, hidden_size, 2
+    in_state1 = torch.randn(2, bsize, 128, 2)
+    in_state2 = torch.randn(2, bsize, 128, 2)
+
+    net = Pytorch_DTLN_stateful()
+    import tqdm
+    for i in tqdm.tqdm(range(100)):
+        y, out_state1, out_state2 = net(x, in_state1, in_state2)
+
+    print(y.shape)
+    print(out_state1.shape)
+    print(out_state2.shape)
+
+
 if __name__ == '__main__':
     import argparse
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_path",
                         type=str,
                         help="model dir",
-                        default=os.path.dirname(__file__)+"/pretrained/model.pth")
+                        default=os.path.dirname(__file__) + "/pretrained/model.pth")
     parser.add_argument("--wav_in",
-                      type=str,
-                      help="wav in",
-                      default=os.path.dirname(__file__) + "/samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav")
+                        type=str,
+                        help="wav in",
+                        default=os.path.dirname(__file__) + "/samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav")
 
     parser.add_argument("--wav_out",
-                      type=str,
-                      help="wav out",
-                      default=os.path.dirname(__file__) + "/samples/enhanced.wav")
+                        type=str,
+                        help="wav out",
+                        default=os.path.dirname(__file__) + "/samples/enhanced.wav")
 
     args = parser.parse_args()
 
