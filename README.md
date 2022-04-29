@@ -7,12 +7,12 @@
 
 
 
-## 0. prequisites
+### 0. prequisites
 
 - pytorch >= 1.11.0
 - librosa
 
-## 1. infer demo
+### 1. infer demo
 
 ```
 python DTLN_model.py  --model_path ./pretrained/model.pth  \
@@ -41,16 +41,19 @@ after enhanced: [./samples/enahnced.wav](./samples/)
 TODO:
 - c++ deploy
 
-## Citation
-If you find *M-LSD* useful in your project, please consider to cite the following paper.
 
-```
-@misc{gu2021realtime,
-    title={Towards Real-time and Light-weight Line Segment Detection},
-    author={Geonmo Gu and Byungsoo Ko and SeoungHyun Go and Sung-Hyun Lee and Jingeun Lee and Minchul Shin},
-    year={2021},
-    eprint={2106.00186},
-    archivePrefix={arXiv},
-    primaryClass={cs.CV}
+### Citing
+
+If you are using the DTLN model, please cite:
+
+```BibTex
+@inproceedings{Westhausen2020,
+  author={Nils L. Westhausen and Bernd T. Meyer},
+  title={{Dual-Signal Transformation LSTM Network for Real-Time Noise Suppression}},
+  year=2020,
+  booktitle={Proc. Interspeech 2020},
+  pages={2477--2481},
+  doi={10.21437/Interspeech.2020-2631},
+  url={http://dx.doi.org/10.21437/Interspeech.2020-2631}
 }
 ```
