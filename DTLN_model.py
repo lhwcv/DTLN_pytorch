@@ -26,16 +26,16 @@ class Simple_STFT_Layer(nn.Module):
 
 
 class Pytorch_InstantLayerNormalization(nn.Module):
-    '''
+    """
     Class implementing instant layer normalization. It can also be called
     channel-wise layer normalization and was proposed by
     Luo & Mesgarani (https://arxiv.org/abs/1809.07454v2)
-    '''
+    """
 
     def __init__(self, channels):
-        '''
+        """
             Constructor
-        '''
+        """
         super(Pytorch_InstantLayerNormalization, self).__init__()
         self.epsilon = 1e-7
         self.gamma = nn.Parameter(torch.ones(channels), requires_grad=True)
@@ -113,12 +113,12 @@ class SeperationBlock_Stateful(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x, in_states):
-        '''
+        """
 
         :param x:  [N, T, input_size]
         :param in_states: [2, N, hidden_size, 2]
         :return:
-        '''
+        """
         h1_in, c1_in = in_states[:1, :, :, 0], in_states[:1, :, :, 1]
         h2_in, c2_in = in_states[1:, :, :, 0], in_states[1:, :, :, 1]
 
@@ -159,11 +159,11 @@ class Pytorch_DTLN(nn.Module):
                                        kernel_size=1, stride=1, bias=False)
 
     def forward(self, x):
-        '''
+        """
 
         :param x:  [N, T]
         :return:
-        '''
+        """
         batch, n_frames = x.shape
 
         mag, phase = self.stft(x)
@@ -224,11 +224,11 @@ class Pytorch_DTLN_stateful(nn.Module):
                                        kernel_size=1, stride=1, bias=False)
 
     def forward(self, x, in_state1, in_state2):
-        '''
+        """
 
         :param x:  [N, T]
         :return:
-        '''
+        """
         batch, n_frames = x.shape
         assert n_frames == self.frame_len
 
@@ -255,6 +255,64 @@ class Pytorch_DTLN_stateful(nn.Module):
         decoded_frame = self.decoder_conv1(estimated)
 
         return decoded_frame, out_state1, out_state2
+
+
+class Pytorch_DTLN_P1_stateful(nn.Module):
+    def __init__(self, frame_len=512, frame_hop=128, window='rect'):
+        super(Pytorch_DTLN_P1_stateful, self).__init__()
+        self.frame_len = frame_len
+        self.frame_hop = frame_hop
+
+        self.sep1 = SeperationBlock_Stateful(input_size=(frame_len // 2 + 1), hidden_size=128, dropout=0.25)
+
+    def forward(self, mag, in_state1):
+        """
+
+        :param mag:  [b, T, 257]
+        :param in_state1: [2, b, 128, 2]
+        :return:
+        """
+        # N, T, hidden_size
+        mask, out_state1 = self.sep1(mag, in_state1)
+        estimated_mag = mask * mag
+        return estimated_mag, out_state1
+
+
+class Pytorch_DTLN_P2_stateful(nn.Module):
+    def __init__(self, frame_len=512):
+        super(Pytorch_DTLN_P2_stateful, self).__init__()
+        self.frame_len = frame_len
+        self.encoder_size = 256
+        self.encoder_conv1 = nn.Conv1d(in_channels=frame_len, out_channels=self.encoder_size,
+                                       kernel_size=1, stride=1, bias=False)
+
+        # self.encoder_norm1 = nn.InstanceNorm1d(num_features=self.encoder_size, eps=1e-7, affine=True)
+        self.encoder_norm1 = Pytorch_InstantLayerNormalization(channels=self.encoder_size)
+
+        self.sep2 = SeperationBlock_Stateful(input_size=self.encoder_size, hidden_size=128, dropout=0.25)
+
+        ## TODO with causal padding like in keras,when ksize > 1
+        self.decoder_conv1 = nn.Conv1d(in_channels=self.encoder_size, out_channels=frame_len,
+                                       kernel_size=1, stride=1, bias=False)
+
+    def forward(self, y1, in_state2):
+        """
+        :param y1: [b, framelen, T]
+        :param in_state2:  [2, b, 128, 2]
+        :return:
+        """
+
+        encoded_f = self.encoder_conv1(y1)
+        encoded_f = encoded_f.permute(0, 2, 1)
+        encoded_f_norm = self.encoder_norm1(encoded_f)
+
+        mask_2, out_state2 = self.sep2(encoded_f_norm, in_state2)
+        estimated = mask_2 * encoded_f
+        estimated = estimated.permute(0, 2, 1)
+
+        decoded_frame = self.decoder_conv1(estimated)
+
+        return decoded_frame, out_state2
 
 
 def test_stateful():

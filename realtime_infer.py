@@ -3,8 +3,7 @@ import torch
 import tqdm
 import numpy as np
 from audio_io import wav_read, wav_write
-from DTLN_model import  Pytorch_DTLN_stateful
-
+from DTLN_model import Pytorch_DTLN_stateful
 
 if __name__ == '__main__':
     import argparse
@@ -33,6 +32,7 @@ if __name__ == '__main__':
 
     print('==> read wav from: ', args.wav_in)
     audio, fs = wav_read(args.wav_in, tgt_fs=16000)
+    print('==> audio len: {} secs'.format(len(audio) / fs))
 
     block_len = 512
     block_shift = 128

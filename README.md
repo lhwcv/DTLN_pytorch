@@ -1,6 +1,6 @@
 # Dual-signal Transformation LSTM Network
 
-+ This repository provides the pytorch code example
++ This repository provides the **pytorch**, **onnx**, **ncnn** code example
 
 + official repo:  https://github.com/breizhn/DTLN
 ---
@@ -12,7 +12,7 @@
 - pytorch >= 1.11.0
 - librosa
 
-### 1. infer demo
+### 1. pytorch demo
 
 ```
 python DTLN_model.py  --model_path ./pretrained/model.pth  \
@@ -37,6 +37,13 @@ after enhanced: [./samples/enahnced.wav](./samples/)
 
 ![](./samples/out.png)
 
+### 2. onnx demo
+realtime (truck by truck, < 1ms in onnxruntime with cpu):
+
+```
+python realtime_onnx.py --wav_in ./samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav \
+   --wav_out ./out.wav
+```
 
 TODO:
 - c++ deploy
