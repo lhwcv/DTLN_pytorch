@@ -13,22 +13,23 @@ if __name__ == '__main__':
     parser.add_argument("--model1_path",
                         type=str,
                         help="model1 path",
-                        default=os.path.dirname(__file__) + "pretrained/model_p1.onnx")
+                        default=os.path.join(os.path.dirname(__file__), "pretrained/model_p1.onnx"))
 
     parser.add_argument("--model2_path",
                         type=str,
                         help="model2 path",
-                        default=os.path.dirname(__file__) + "pretrained/model_p2.onnx")
+                        default=os.path.join(os.path.dirname(__file__), "pretrained/model_p2.onnx"))
 
     parser.add_argument("--wav_in",
                         type=str,
                         help="wav in",
-                        default=os.path.dirname(__file__) + "samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav")
+                        default=os.path.join(os.path.dirname(__file__),
+                                             "samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav"))
 
     parser.add_argument("--wav_out",
                         type=str,
                         help="wav out",
-                        default=os.path.dirname(__file__) + "samples/enhanced_onnx.wav")
+                        default=os.path.join(os.path.dirname(__file__), "samples/enhanced_onnx.wav"))
 
     args = parser.parse_args()
 
@@ -127,6 +128,7 @@ if __name__ == '__main__':
         out_buffer[-block_shift:] = np.zeros((block_shift))
         out_buffer += np.squeeze(out_block)
 
+        # print(idx, np.abs(out_buffer).sum())
         # write block to output file
         out[idx * block_shift:(idx * block_shift) + block_shift] = out_buffer[:block_shift]
 

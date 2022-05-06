@@ -38,8 +38,8 @@ class Pytorch_InstantLayerNormalization(nn.Module):
         """
         super(Pytorch_InstantLayerNormalization, self).__init__()
         self.epsilon = 1e-7
-        self.gamma = nn.Parameter(torch.ones(channels), requires_grad=True)
-        self.beta = nn.Parameter(torch.zeros(channels), requires_grad=True)
+        self.gamma = nn.Parameter(torch.ones(1, 1, channels), requires_grad=True)
+        self.beta = nn.Parameter(torch.zeros(1, 1, channels), requires_grad=True)
         self.register_parameter("gamma", self.gamma)
         self.register_parameter("beta", self.beta)
 
@@ -51,7 +51,6 @@ class Pytorch_InstantLayerNormalization(nn.Module):
         variance = torch.mean(torch.square(inputs - mean), dim=-1, keepdim=True)
         # calculate standard deviation
         std = torch.sqrt(variance + self.epsilon)
-        # normalize each frame independently
         outputs = (inputs - mean) / std
         # scale with gamma
         outputs = outputs * self.gamma
@@ -247,13 +246,10 @@ class Pytorch_DTLN_stateful(nn.Module):
         encoded_f = self.encoder_conv1(y1)
         encoded_f = encoded_f.permute(0, 2, 1)
         encoded_f_norm = self.encoder_norm1(encoded_f)
-
         mask_2, out_state2 = self.sep2(encoded_f_norm, in_state2)
         estimated = mask_2 * encoded_f
         estimated = estimated.permute(0, 2, 1)
-
         decoded_frame = self.decoder_conv1(estimated)
-
         return decoded_frame, out_state1, out_state2
 
 

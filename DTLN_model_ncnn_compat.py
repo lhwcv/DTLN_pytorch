@@ -40,6 +40,7 @@ class Pytorch_InstantLayerNormalization(nn.Module):
         # return output
         return outputs
 
+
 class SeperationBlock_Stateful(nn.Module):
     def __init__(self, input_size=257, hidden_size=128, dropout=0.25):
         super(SeperationBlock_Stateful, self).__init__()
@@ -67,8 +68,8 @@ class SeperationBlock_Stateful(nn.Module):
         :param in_states: [1, 1, 128, 4]
         :return:
         """
-        #h1_in, c1_in = in_states[:, :, :, 0], in_states[:, :, :, 1]
-        #h2_in, c2_in = in_states[:, :, :, 2], in_states[:, :, :, 3]
+        # h1_in, c1_in = in_states[:, :, :, 0], in_states[:, :, :, 1]
+        # h2_in, c2_in = in_states[:, :, :, 2], in_states[:, :, :, 3]
 
         # NCNN not support Gather
         x1, (h1, c1) = self.rnn1(x, (h1_in, c1_in))
@@ -82,6 +83,7 @@ class SeperationBlock_Stateful(nn.Module):
         out_states = torch.cat((h1, c1, h2, c2), dim=0)
         return mask, out_states
 
+
 class Pytorch_DTLN_P1_stateful(nn.Module):
     def __init__(self, frame_len=512, frame_hop=128, window='rect'):
         super(Pytorch_DTLN_P1_stateful, self).__init__()
@@ -90,6 +92,8 @@ class Pytorch_DTLN_P1_stateful(nn.Module):
 
         self.sep1 = SeperationBlock_Stateful(input_size=(frame_len // 2 + 1), hidden_size=128, dropout=0.25)
 
+        self.fix_ncnn_err = True
+
     def forward(self, mag, h1_in, c1_in, h2_in, c2_in):
         """
 
@@ -97,12 +101,53 @@ class Pytorch_DTLN_P1_stateful(nn.Module):
         :param in_state1: [1, 1, 128, 4]
         :return:
         """
-        #assert in_state1.shape[0] == 1
-        #assert in_state1.shape[-1] == 4
+        # assert in_state1.shape[0] == 1
+        # assert in_state1.shape[-1] == 4
         # N, T, hidden_size
         mask, out_state1 = self.sep1(mag, h1_in, c1_in, h2_in, c2_in)
-        estimated_mag = mask * mag
+        if self.fix_ncnn_err:
+            mask = mask.reshape(-1)
+            mag = mag.reshape(-1)
+
+            estimated_mag = mask * mag
+            estimated_mag = estimated_mag.view(1, 1, -1)
+        else:
+            # NCNN BinaryOP result err
+            estimated_mag = mask * mag
+
         return estimated_mag, out_state1
+
+
+class Pytorch_InstantLayerNormalization_NCNN_Compat(nn.Module):
+    def __init__(self, channels):
+        """
+            Constructor
+        """
+        super(Pytorch_InstantLayerNormalization_NCNN_Compat, self).__init__()
+        self.epsilon = 1e-7
+        self.gamma = nn.Parameter(torch.ones(1, 1, channels), requires_grad=True)
+        self.beta = nn.Parameter(torch.zeros(1, 1, channels), requires_grad=True)
+        self.register_parameter("gamma", self.gamma)
+        self.register_parameter("beta", self.beta)
+
+    def forward(self, inputs):
+        assert inputs.shape[0] == 1
+        assert inputs.shape[1] == 1
+        # calculate mean of each frame
+        mean = torch.mean(inputs)
+        sub = inputs - mean
+        # calculate variance of each frame
+        variance = torch.mean(torch.square(sub))
+        # calculate standard deviation
+        std = torch.sqrt(variance + self.epsilon)
+        # normalize each frame independently
+        outputs = sub / std
+        # scale with gamma
+        outputs = outputs * self.gamma
+        # add the bias beta
+        outputs = outputs + self.beta
+        # return output
+        return outputs
 
 
 class Pytorch_DTLN_P2_stateful(nn.Module):
@@ -114,13 +159,15 @@ class Pytorch_DTLN_P2_stateful(nn.Module):
                                        kernel_size=1, stride=1, bias=False)
 
         # self.encoder_norm1 = nn.InstanceNorm1d(num_features=self.encoder_size, eps=1e-7, affine=True)
-        self.encoder_norm1 = Pytorch_InstantLayerNormalization(channels=self.encoder_size)
+        self.encoder_norm1 = Pytorch_InstantLayerNormalization_NCNN_Compat(channels=self.encoder_size)
 
         self.sep2 = SeperationBlock_Stateful(input_size=self.encoder_size, hidden_size=128, dropout=0.25)
 
         ## TODO with causal padding like in keras,when ksize > 1
         self.decoder_conv1 = nn.Conv1d(in_channels=self.encoder_size, out_channels=frame_len,
                                        kernel_size=1, stride=1, bias=False)
+
+        self.fix_ncnn_err = True
 
     def forward(self, y1, h1_in, c1_in, h2_in, c2_in):
         """
@@ -133,7 +180,17 @@ class Pytorch_DTLN_P2_stateful(nn.Module):
         encoded_f_norm = self.encoder_norm1(encoded_f)
 
         mask_2, out_state2 = self.sep2(encoded_f_norm, h1_in, c1_in, h2_in, c2_in)
-        estimated = mask_2 * encoded_f
+
+        if self.fix_ncnn_err:
+            mask_2 = mask_2.reshape(-1)
+            encoded_f = encoded_f.reshape(-1)
+
+            estimated = mask_2 * encoded_f
+            estimated = estimated.view(1, 1, self.encoder_size)
+        else:
+            # NCNN BinaryOP result err
+            estimated = mask_2 * encoded_f
+
         estimated = estimated.permute(0, 2, 1)
 
         decoded_frame = self.decoder_conv1(estimated)

@@ -12,16 +12,17 @@ if __name__ == '__main__':
     parser.add_argument("--model_path",
                         type=str,
                         help="model dir",
-                        default=os.path.dirname(__file__) + "pretrained/model.pth")
+                        default=os.path.join(os.path.dirname(__file__),"pretrained/model.pth"))
     parser.add_argument("--wav_in",
                         type=str,
                         help="wav in",
-                        default=os.path.dirname(__file__) + "samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav")
+                        default=os.path.join(os.path.dirname(__file__),
+                                             "samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav"))
 
     parser.add_argument("--wav_out",
                         type=str,
                         help="wav out",
-                        default=os.path.dirname(__file__) + "samples/enhanced2.wav")
+                        default=os.path.join(os.path.dirname(__file__), "samples/enhanced2.wav"))
 
     args = parser.parse_args()
 
@@ -32,6 +33,8 @@ if __name__ == '__main__':
 
     print('==> read wav from: ', args.wav_in)
     audio, fs = wav_read(args.wav_in, tgt_fs=16000)
+
+    #print('abs sum: ', np.abs(audio).sum())
     print('==> audio len: {} secs'.format(len(audio) / fs))
 
     block_len = 512
