@@ -1,0 +1,19 @@
+7767517
+17 22
+Input            mag                      0 1 mag
+Split            splitncnn_input0         1 2 mag mag_splitncnn_0 mag_splitncnn_1
+Input            h1_in                    0 1 h1_in
+Input            c1_in                    0 1 c1_in
+Input            h2_in                    0 1 h2_in
+Input            c2_in                    0 1 c2_in
+MemoryData       sep1.dense.bias          0 1 sep1.dense.bias 0=257
+LSTM             LSTM_1                   3 3 mag_splitncnn_1 h1_in c1_in 40 38 39 0=128 1=131584 2=0
+LSTM             LSTM_3                   3 3 40 h2_in c2_in 66 63 64 0=128 1=65536 2=0
+InnerProduct     MatMul_6                 1 1 66 68 0=257 1=0 2=32896
+BinaryOp         Add_7                    2 1 sep1.dense.bias 68 69 0=0
+Sigmoid          Sigmoid_8                1 1 69 70
+Concat           Concat_9                 4 1 38 39 63 64 out_state1 0=0
+Reshape          Reshape_11               1 1 70 73 0=-1
+Reshape          Reshape_13               1 1 mag_splitncnn_0 75 0=-1
+BinaryOp         Mul_14                   2 1 73 75 76 0=2
+Reshape          Reshape_16               1 1 76 y1 0=-1 1=1

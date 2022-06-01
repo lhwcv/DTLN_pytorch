@@ -45,8 +45,9 @@ python realtime_onnx.py --wav_in ./samples/audioset_realrec_airconditioner_2TE3L
    --wav_out ./out.wav
 ```
 
-TODO:
-- c++ deploy
+
+### 3. c++ deploy
+see deploy/
 
 
 ### Citing
