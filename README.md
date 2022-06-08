@@ -19,6 +19,7 @@ python DTLN_model.py  --model_path ./pretrained/model.pth  \
    --wav_in ./samples/audioset_realrec_airconditioner_2TE3LoA2OUQ.wav \
    --wav_out ./out.wav
 ```
+(./pretrained/model.pth is converted using cvt_from_keras.py) <br/>
 
 realtime (truck by truck, avg 2ms in pytorch with cpu):
 
