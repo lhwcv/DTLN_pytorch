@@ -5,13 +5,13 @@ import soundfile
 import librosa
 import io
 
-def wav_read(filename, tgt_fs=None):
-    y, fs = soundfile.read(filename, dtype='float32')
+def wav_read(filename, tgt_fs=16000):
+    #y, fs = soundfile.read(filename, dtype='float32')
+    y, fs = librosa.load(filename, sr=None, mono=False)
     if tgt_fs is not None:
         if fs != tgt_fs:
-            if fs != 16000:
-                y = librosa.resample(y, tgt_fs, 16000)
-                fs = tgt_fs
+            y = librosa.resample(y, orig_sr=fs, target_sr=tgt_fs)
+            fs = tgt_fs
     return y, fs
 
 def wav_write(data, fs, filename):
